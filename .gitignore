@@ -1,1 +1,9 @@
 input/*
+output/*
+.env
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+~$*.xlsx
+.claude/
