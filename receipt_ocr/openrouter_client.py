@@ -8,8 +8,11 @@ import time
 from pathlib import Path
 from typing import Any
 
-from groq import Groq, RateLimitError
+from openai import OpenAI, RateLimitError
 
+
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_MODEL = "google/gemma-4-26b-a4b-it:free"
 
 PROMPT = """
 Anda adalah OCR dan data extractor untuk struk bensin Indonesia.
@@ -52,13 +55,16 @@ def _encode_image(path: Path) -> str:
     return base64.b64encode(path.read_bytes()).decode("utf-8")
 
 
-def extract_receipt_json(image_paths: list[Path]) -> dict[str, Any]:
-    api_key = os.environ.get("GROQ_API_KEY")
+def extract_receipt_json(image_paths: list[Path], model: str | None = None) -> dict[str, Any]:
+    api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
-        raise RuntimeError("GROQ_API_KEY belum diisi. Buat .env dari .env.example lalu isi API key.")
+        raise RuntimeError("OPENROUTER_API_KEY belum diisi. Isi di file .env.")
 
-    model = os.environ.get("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
-    client = Groq(api_key=api_key)
+    model = model or os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL)
+    client = OpenAI(
+        api_key=api_key,
+        base_url=OPENROUTER_BASE_URL,
+    )
 
     content: list[dict[str, Any]] = [{"type": "text", "text": PROMPT}]
     for image_path in image_paths:
@@ -69,34 +75,38 @@ def extract_receipt_json(image_paths: list[Path]) -> dict[str, Any]:
             }
         )
 
-    completion = create_with_rate_limit_retry(client, model, content)
-    text = completion.choices[0].message.content or "{}"
-    return json.loads(text)
+    completion = _create_with_retry(client, model, content)
+    raw = completion.choices[0].message.content or "{}"
+
+    # Strip markdown code fences jika model membungkus respons
+    raw = re.sub(r"^```(?:json)?\s*", "", raw.strip())
+    raw = re.sub(r"\s*```$", "", raw.strip())
+
+    return json.loads(raw)
 
 
-def create_with_rate_limit_retry(client: Groq, model: str, content: list[dict[str, Any]]) -> Any:
+def _create_with_retry(client: OpenAI, model: str, content: list[dict[str, Any]]) -> Any:
     for attempt in range(1, 4):
         try:
             return client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": content}],
-                response_format={"type": "json_object"},
                 temperature=0,
-                max_completion_tokens=2048,
+                max_tokens=2048,
             )
         except RateLimitError as exc:
-            wait_seconds = retry_wait_seconds(str(exc))
+            wait = _parse_retry_wait(str(exc))
             if attempt >= 3:
                 raise
-            print(f"Rate limit Groq. Menunggu {wait_seconds:.0f} detik lalu mencoba lagi...")
-            time.sleep(wait_seconds)
-    raise RuntimeError("Gagal memanggil Groq setelah retry.")
+            print(f"Rate limit. Menunggu {wait:.0f}s lalu mencoba lagi (percobaan {attempt}/3)...")
+            time.sleep(wait)
+    raise RuntimeError("Gagal memanggil OpenRouter setelah 3 percobaan.")
 
 
-def retry_wait_seconds(message: str) -> float:
+def _parse_retry_wait(message: str) -> float:
     match = re.search(r"try again in (?:(\d+)m)?(?:(\d+(?:\.\d+)?)s)?", message, re.IGNORECASE)
     if not match:
-        return 60
+        return 60.0
     minutes = float(match.group(1) or 0)
     seconds = float(match.group(2) or 0)
-    return max(5, minutes * 60 + seconds + 2)
+    return max(5.0, minutes * 60 + seconds + 2)

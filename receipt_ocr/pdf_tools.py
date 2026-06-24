@@ -23,13 +23,10 @@ def render_page(pdf_path: Path, page_number: int, output_prefix: Path, dpi: int)
     subprocess.run(
         [
             "pdftoppm",
-            "-f",
-            str(page_number),
-            "-l",
-            str(page_number),
+            "-f", str(page_number),
+            "-l", str(page_number),
             "-jpeg",
-            "-r",
-            str(dpi),
+            "-r", str(dpi),
             str(pdf_path),
             str(output_prefix),
         ],
