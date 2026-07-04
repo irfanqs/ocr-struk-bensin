@@ -34,10 +34,8 @@ def render_page(pdf_path: Path, page_number: int, output_prefix: Path, dpi: int)
         capture_output=True,
         text=True,
     )
-    rendered = output_prefix.with_name(f"{output_prefix.name}-{page_number}.jpg")
-    if not rendered.exists():
-        alt = output_prefix.with_name(f"{output_prefix.name}-{page_number:02d}.jpg")
-        if alt.exists():
-            return alt
+    candidates = list(output_prefix.parent.glob(f"{output_prefix.name}-*.jpg"))
+    if not candidates:
         raise RuntimeError(f"Render gagal, file tidak ditemukan untuk {pdf_path} halaman {page_number}")
+    rendered = candidates[0]
     return rendered
