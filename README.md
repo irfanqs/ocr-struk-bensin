@@ -9,7 +9,7 @@ Alurnya dua tahap, dijalankan sebagai dua program terpisah:
 
 ## Persiapan
 
-Install dependency Python:
+### macOS / Linux
 
 ```bash
 python3 -m venv .venv
@@ -25,15 +25,54 @@ which pdfinfo
 which pdftoppm
 ```
 
-Isi API key:
+### Windows
+
+Install Python 3 dari [python.org](https://www.python.org/downloads/windows/) (centang "Add python.exe to PATH" saat instalasi), lalu di **PowerShell** atau **Command Prompt**:
+
+```powershell
+py -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Kalau PowerShell menolak menjalankan script aktivasi (`running scripts is disabled on this system`), jalankan sekali sebagai admin:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+Poppler tidak tersedia lewat installer resmi di Windows, jadi harus ambil build pihak ketiga:
+
+1. Download build Windows dari [oschwartz10612/poppler-windows releases](https://github.com/oschwartz10612/poppler-windows/releases) (ambil file `Release-xx.xx.x-0.zip`).
+2. Extract, misalnya ke `C:\poppler`. Di dalamnya ada folder `Library\bin` yang berisi `pdfinfo.exe` dan `pdftoppm.exe`.
+3. Tambahkan folder `bin` tersebut (mis. `C:\poppler\Library\bin`) ke PATH:
+   - Search "Edit the system environment variables" → **Environment Variables** → di **User variables**, pilih `Path` → **Edit** → **New** → isi path folder `bin` → OK di semua dialog.
+4. Buka terminal baru (supaya PATH ter-refresh), lalu cek:
+
+```powershell
+pdfinfo -v
+pdftoppm -v
+```
+
+Kalau `pip install` untuk Pillow/openpyxl gagal build dari source, pastikan pakai Python versi 64-bit terbaru (3.11/3.12) — semua dependency di `requirements.txt` sudah tersedia sebagai wheel prebuilt untuk Windows sehingga tidak perlu Visual C++ Build Tools.
+
+### Isi API key (semua OS)
 
 ```bash
 cp .env.example .env
 ```
 
+Di Windows kalau `cp` tidak dikenali (Command Prompt), pakai:
+
+```powershell
+copy .env.example .env
+```
+
 Lalu edit `.env` dan isi minimal `OPENROUTER_API_KEY` (model utama). `GROQ_API_KEY` opsional tapi disarankan diisi juga — dipakai otomatis sebagai fallback kalau OpenRouter kena rate limit.
 
 Taruh PDF struk yang mau diproses di dalam `input/`, boleh dikelompokkan per folder bulan (mis. `input/STRUK BBM NOV 2025/`).
+
+> Catatan Windows: semua contoh perintah di README ini pakai `python`. Kalau perintah `python` tidak dikenal di terminal Windows Anda, ganti dengan `py` (mis. `py ocr.py`, `py export_excel.py`).
 
 ## Tahap 1 — OCR (`ocr.py`)
 
